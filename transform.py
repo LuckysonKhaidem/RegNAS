@@ -6,6 +6,8 @@ from matplotlib import pyplot as plt
 from scipy.ndimage.interpolation import map_coordinates
 from scipy.ndimage.filters import gaussian_filter
 from scipy.spatial.transform import Rotation
+from models import SpatialTransformer
+import torch
 
 def elastic_transform(image,alpha, sigma):
     shape = image.shape
@@ -63,20 +65,28 @@ def random_transform(image):
     alpha = np.random.uniform(low = 0,high = 1000)
     sigma = np.random.uniform(low = 11,high = 13 )
     tr_image, elastic_displacement = elastic_transform(tr_image, alpha, sigma)
-    print(affine_displacement.shape)
-    print(elastic_displacement.shape)
     displacement = affine_displacement + elastic_displacement
-    print(displacement)
     return tr_image,displacement
+
+def run_stn(image, displacement):
+    stn = SpatialTransformer(image.shape)
+    image = torch.from_numpy(image).unsqueeze(0).unsqueeze(0).float()
+    displacement = torch.from_numpy(displacement).unsqueeze(0).float()
+    tr_image = stn(image,displacement)
+    return tr_image.detach().numpy()[0][0]
 
 def test():
     x = nib.load("/Users/luckysonkhaidem/school-work/research/Task04_Hippocampus/imagesTr/hippocampus_001.nii.gz")
     image = x.get_fdata()
     transformed_image,displacement = random_transform(image)
-    new_image = nib.Nifti1Image(transformed_image, affine=np.eye(4))
-    new_image.to_filename("deformed.nii")
-    plot_img("Task04_Hippocampus/imagesTr/hippocampus_001.nii.gz")
-    plot_img("deformed.nii")
-    plt.show()
+    # test_img = run_stn(image,displacement)
+    # new_image = nib.Nifti1Image(transformed_image, affine=np.eye(4))
+    # new_image.to_filename("deformed.nii")
+    # new_image = nib.Nifti1Image(test_img, affine=np.eye(4))
+    # new_image.to_filename("deformed_1.nii")
+    # plot_img("Task04_Hippocampus/imagesTr/hippocampus_001.nii.gz")
+    # plot_img("deformed.nii")
+    # plot_img("deformed_1.nii")
+    # plt.show()
 
 test()
