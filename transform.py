@@ -15,7 +15,14 @@ def elastic_transform(image,alpha, sigma):
     dz = np.zeros_like(dx)
     x,y,z = np.meshgrid(np.arange(shape[1]), np.arange(shape[0]), np.arange(shape[2]))
     indices = np.reshape(y + dy,(-1,1)),np.reshape(x + dx,(-1,1)), np.reshape(z,(-1,1))
-    return map_coordinates(image,indices).reshape(shape)
+    temp =  map_coordinates(image,indices)
+    tr =  temp.reshape(shape)
+    
+    displacement  = np.concatenate((dx,dy,dz),axis=0)
+
+    displacement = displacement.reshape((3,) + shape)
+    return tr, displacement
+
 
 def get_affine_transformation_matrix():
     a = np.random.uniform(0,np.pi/6, size = (3,)) #rotation angles
@@ -34,18 +41,38 @@ def get_affine_transformation_matrix():
  
     return M
 
+def get_affine_displacement(shape, M):
+    displacement = np.zeros((3,) + shape)
+    for i in range(shape[0]):
+        for j in range(shape[1]):
+            for k in range(shape[2]):
+                vec = np.array([i,j,k,1]).reshape((4,1))
+                new_vec = M @ vec
+                d = new_vec - vec
+                displacement[0][i][j][k] = d[0]
+                displacement[1][i][j][k] = d[1]
+                displacement[2][i][j][k] = d[2]
+
+    return displacement
+
+
 def random_transform(image):
     M = get_affine_transformation_matrix()
-    image = affine_transform(image,M, mode = "constant")
+    tr_image = affine_transform(image,M, mode = "constant")
+    affine_displacement  = get_affine_displacement(image.shape,M)
     alpha = np.random.uniform(low = 0,high = 1000)
     sigma = np.random.uniform(low = 11,high = 13 )
-    image = elastic_transform(image, alpha, sigma)
-    return image
+    tr_image, elastic_displacement = elastic_transform(tr_image, alpha, sigma)
+    print(affine_displacement.shape)
+    print(elastic_displacement.shape)
+    displacement = affine_displacement + elastic_displacement
+    print(displacement)
+    return tr_image,displacement
 
 def test():
     x = nib.load("/Users/luckysonkhaidem/school-work/research/Task04_Hippocampus/imagesTr/hippocampus_001.nii.gz")
     image = x.get_fdata()
-    transformed_image = random_transform(image)
+    transformed_image,displacement = random_transform(image)
     new_image = nib.Nifti1Image(transformed_image, affine=np.eye(4))
     new_image.to_filename("deformed.nii")
     plot_img("Task04_Hippocampus/imagesTr/hippocampus_001.nii.gz")
